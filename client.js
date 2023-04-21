@@ -1,8 +1,9 @@
 const net = require('net');
+var readlineSync = require('readline-sync');
 
 
-const socket = net.connect(8124, "192.168.10.111", (event)=>{
-    console.log("connected")
+const socket = net.connect(8124, "localhost", (event)=>{
+    console.log("connected", event)
+
 })
-
 

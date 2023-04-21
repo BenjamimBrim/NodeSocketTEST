@@ -12,9 +12,7 @@ const server = net.createServer((c) => {
   c.write('hello\r\n');
   c.pipe(c);
 
-  while (true) {
-    
-  }
+
 });
 server.on('error', (err) => {
   throw err;
