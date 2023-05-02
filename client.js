@@ -1,32 +1,65 @@
 const net = require('net');
-var readlineSync = require('readline-sync');
+const { pipeline } = require('node:stream/promises');
+
 
 const client = net.createConnection({host:'localhost', port: 8124 }, () => {
-    return new Promise(() => { 
-        console.log('connected to server!');
-        client.on('data', (data) => {
-            console.log(data.toString());
-        });
-        
-        client.on('end', () => {
-            console.log('disconnected from server');
-        });
-        readlineTsk(client);
-    })
+    console.log('connected to server!');    
+    
+    // client.on('data', (data) => {
+    //     // console.log(data.toString());
+    // });
+    
+    client.on('end', () => {
+        console.log('disconnected from server');
+    });
 });
 
-
-
-
-function readlineTsk(c) {
-    var line = readlineSync.question('send: ');
-
-    if (line == 'c' ) {
-        return;
-    } else {
-        c.write(line);
-    }
-
-    setTimeout(()=>readlineTsk(c), 10)
+async function connect() {
+    console.log("starting server stream...");
+    
+    await pipeline(
+        client,
+        ...[
+            async function* (source, { signal }) {
+                for await (const chunk of source) { 
+                    yield "server> "+chunk+"\r\n";
+                }
+            }
+        ], 
+        process.stdout
+    )
 }
+
+async function readline(){
+    console.log("Starting input stream...")
+
+    // var rl = readline.createInterface({
+    //     input: process.stdin,
+    //     output: process.stdout,
+    //     terminal: false
+    // });
+    // rl.on('line', (line) => {
+    //     client.write(line)
+    // })
+
+    await pipeline(
+        process.stdin,
+        ...[
+            async function* (source, { signal }) {
+                for await (const chunk of source) { 
+                    yield chunk
+                }
+            }
+        ], 
+        client
+    )
+    
+}
+
+Promise.all([connect(), readline()]).catch(console.error);
+
+
+
+
+
 

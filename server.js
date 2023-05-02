@@ -1,23 +1,26 @@
-var readlineSync = require("readline-sync");
-
 // 192.168.10.111
 const net = require("net");
 
-const server = net.createServer((c) => {
-  return new Promise(() => {
-    console.log("client connected");
-    c.on("end", () => {
-      console.log("client disconnected");
-    });
+const { PassThrough, Writable } = require('node:stream');
 
-    c.on("data", (data) => {
-      console.log("client: ", data.toString());
-    });
+const { pipeline } = require('node:stream/promises');
 
-    c.write("bem vindo!");
 
-    readlineTsk(c);
-  });
+
+const clientsStream = PassThrough()
+
+clientsStream.on("close", () => { 
+  console.log("clients stream closed")
+})
+
+const server = net.createServer((client) => {
+  console.log("client connected");
+  client.write("bem vindo!");
+  client.on("data", (data) => { 
+    clientsStream.write(data)
+  })
+  client.on("end", () => { console.log("client disconnected") })
+  clientsStream.pipe(client)
 });
 
 server.on("error", (err) => {
@@ -28,18 +31,22 @@ server.listen(8124, () => {
   console.log("server bound");
 });
 
-function readlineTsk(c) {
-  return new Promise(() => {
-    // var line = readlineSync.question('send: ');
-    for (let index = 0; index < array.length; index++) {
-      c.write(index);
-    }
-    // if (line == "c") {
-    //   return;
-    // } else {
-    //   c.write(line);
-    // }
+async function logger() {
 
-    setTimeout(() => readlineTsk(c), 1000);
-  });
+  await pipeline(
+    clientsStream,
+    ... [
+      async function* (source, { signal }) {
+        for await (const chunk of source) {
+          yield "client> " + chunk
+        }
+      }
+    ],
+    process.stdout
+  ).catch(err => {    
+    console.error(err)
+  })
 }
+
+Promise.all([logger()]).catch(console.err)
+
