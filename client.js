@@ -1,65 +1,102 @@
 const net = require('net');
 const { pipeline } = require('node:stream/promises');
+const { PassThrough, Writable } = require('node:stream');
+const { EventEmitter } = require('node:events');
+
+class MyEmitter extends EventEmitter {}
+
+const events = new MyEmitter();
 
 
-const client = net.createConnection({host:'localhost', port: 8124 }, () => {
-    console.log('connected to server!');    
-    
-    // client.on('data', (data) => {
-    //     // console.log(data.toString());
-    // });
-    
-    client.on('end', () => {
-        console.log('disconnected from server');
-    });
-});
 
-async function connect() {
-    console.log("starting server stream...");
-    
-    await pipeline(
-        client,
-        ...[
-            async function* (source, { signal }) {
-                for await (const chunk of source) { 
-                    yield "server> "+chunk+"\r\n";
+
+
+events.on("message", data => {
+    console.log(`${data.from}> ${data.data}`); 
+})
+var reconnection = null;
+var retry = true;
+var retryTimeout = 1000
+
+async function createConnection() {
+    const client = net.connect({host: 'localhost',port: 8124});    
+        client.on("close", () => { 
+            console.log("connection closed");
+            if (retry) {
+                async function retry() {
+                    console.log("retrying connection...");
+                    setTimeout(() => {
+                        createConnection().catch(console.error);
+                    }, retryTimeout);
                 }
+                retry().catch(console.error)
             }
-        ], 
-        process.stdout
-    )
+        })
+
+        client.on('end', () => {
+            console.log('disconnected from server');
+            client.pause()
+        });
+        async function serverListener() {
+            console.log("starting server stream...");
+            const logstream = new PassThrough()
+            logstream.on("data", (data) => process.stdout.write(data));
+        
+            await pipeline(
+                client,
+                ... [
+                    async function* (source, { signal }) {
+                        for await (const chunk of source) { 
+                            const parsed = JSON.parse(chunk);
+                            
+                            if (parsed["type"] === 'message') {
+                                events.emit("message", parsed)
+                                // yield "received> " + chunk + "\r\n";
+                            }
+                        }
+                    }
+                ], 
+                logstream
+            )
+        }
+        
+        async function readline(){
+            console.log("Starting input stream...")
+        
+            await pipeline(
+                process.stdin,
+                ...[
+                    async function* (source, { signal }) {
+                        for await (const chunk of source) {
+                            const message = {
+                                data: String(chunk).substring(0, chunk.length-1),
+                                type: "message"
+                            }
+                            yield JSON.stringify(message)
+                        }
+                    }
+                ], 
+                client
+            )
+            
+        }
+        client.on('error', console.error)
+        client.on('connect', () => {
+            console.log('connected to server!');    
+            reconnection = null
+            Promise.all([serverListener(), readline()]).catch(console.error);
+        })
+    
+    
+        
+        
+        
+        
+    
 }
 
-async function readline(){
-    console.log("Starting input stream...")
-
-    // var rl = readline.createInterface({
-    //     input: process.stdin,
-    //     output: process.stdout,
-    //     terminal: false
-    // });
-    // rl.on('line', (line) => {
-    //     client.write(line)
-    // })
-
-    await pipeline(
-        process.stdin,
-        ...[
-            async function* (source, { signal }) {
-                for await (const chunk of source) { 
-                    yield chunk
-                }
-            }
-        ], 
-        client
-    )
-    
-}
-
-Promise.all([connect(), readline()]).catch(console.error);
 
 
-
-
+createConnection().catch(console.error)
 
 
