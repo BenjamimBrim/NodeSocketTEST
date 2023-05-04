@@ -14,12 +14,18 @@ const events = new MyEmitter();
 events.on("message", data => {
     console.log(`${data.from}> ${data.data}`); 
 })
+
+const
+    HOSTNAME = "localhost",
+    HOST_PORT = 5561;
+
 var reconnection = null;
 var retry = true;
 var retryTimeout = 1000
 
+
 async function createConnection() {
-    const client = net.connect({host: 'localhost',port: 8124});    
+    const client = net.connect({host: HOSTNAME, port: HOST_PORT});    
         client.on("close", () => { 
             console.log("connection closed");
             if (retry) {

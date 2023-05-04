@@ -5,6 +5,9 @@ const crypto = require("crypto");
 const { PassThrough, Writable } = require('node:stream');
 
 const { pipeline } = require('node:stream/promises');
+const
+  HOSTNAME = "0.0.0.0",
+  HOST_PORT =  5561
 
 
 
@@ -61,6 +64,6 @@ server.on("error", (err) => {
   throw err;
 });
 
-server.listen(8124, () => {
-  console.log("server bound");
+server.listen(HOST_PORT, HOSTNAME, () => {
+  console.log(`server bound at ${HOSTNAME}:${HOST_PORT}`);
 });
